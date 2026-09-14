@@ -1,0 +1,47 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Projector - Live Poll</title><link rel="stylesheet" href="/style.css">
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body class="projector">
+<main class="wrap">
+<section class="card">
+  <div class="topbar">
+    <div><p class="eyebrow">Live Poll</p><h1 id="title">Live Poll</h1></div>
+    <div class="codebox"><span class="small">Join code</span><strong id="codeBox"></strong></div>
+  </div>
+</section>
+<section class="card">
+  <div id="content" class="big-center"><h2>Waiting for the presenter…</h2></div>
+</section>
+</main>
+<script>
+const p=new URLSearchParams(location.search),code=(p.get('code')||'').toUpperCase(),key=p.get('key')||'';
+const socket=io();
+document.getElementById('codeBox').textContent=code;
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+socket.emit('join_projector',{code,key});
+socket.on('projector_state',s=>render(s));
+socket.on('error_message',m=>document.getElementById('content').innerHTML=`<h2 style="color:#b91c1c">${esc(m)}</h2>`);
+function render(s){
+  document.getElementById('title').textContent=s.title||'Live Poll';
+  const c=document.getElementById('content');
+  if(s.active===null){c.innerHTML='<h2>Waiting for the next question…</h2>';return}
+  let html=`<p class="eyebrow">Live question</p><h2>${esc(s.question.text)}</h2><p><strong>${s.responseCount||0}</strong> response(s)</p>`;
+  if(s.showResults&&s.counts){
+    const total=s.counts.reduce((a,b)=>a+b,0);
+    html += s.question.options.map((opt,i)=>{
+      const n=s.counts[i]||0,pct=total?Math.round(n/total*100):0;
+      return `<div class="result"><div class="result-label"><span>${esc(opt)}</span><strong>${n} (${pct}%)</strong></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+    }).join('');
+  } else {
+    html += '<p class="muted">Results hidden until the presenter reveals them.</p>';
+  }
+  c.className=''; c.innerHTML=html;
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Poll Question</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+body{background:transparent}
+.embed-wrap{max-width:1200px;margin:0 auto;padding:28px}
+.embed-card{background:white;border:0;border-radius:18px;padding:28px}
+.embed-card h1{font-size:2.4rem;margin-bottom:14px}
+.embed-card .choice-line{font-size:1.35rem;padding:10px 0;border-bottom:1px solid #e5e7eb}
+.embed-card .result-label{font-size:1.25rem}
+.embed-card .bar{height:24px}
+.state-note{font-weight:800;color:#6b7280;margin-bottom:14px}
+</style>
+</head>
+<body>
+<main class="embed-wrap">
+  <section class="embed-card">
+    <div id="content">
+      <p class="muted">Loading poll question…</p>
+    </div>
+  </section>
+</main>
+
+<script>
+const p=new URLSearchParams(location.search);
+const code=(p.get('code')||'').toUpperCase();
+const qIndex=Number(p.get('q')||0);
+const socket=io();
+let latest=null;
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+
+async function fetchState(){
+  const r=await fetch(`/api/session/${code}/question/${qIndex}/display-state`);
+  if(!r.ok){
+    document.getElementById('content').innerHTML='<h2>Question not found.</h2>';
+    return;
+  }
+  latest=await r.json();
+  render();
+}
+
+function render(){
+  if(!latest)return;
+  const c=document.getElementById('content');
+  const s=latest;
+  let html='';
+
+  if(!s.isActive){
+    html += `<p class="state-note">Waiting for the presenter to launch this question…</p>`;
+  } else if(!s.showResults){
+    html += `<p class="state-note">Live question • ${s.responseCount} response(s)</p>`;
+  } else {
+    html += `<p class="state-note">Live results • ${s.responseCount} response(s)</p>`;
+  }
+
+  html += `<h1>${esc(s.question.text)}</h1>`;
+
+  if(!s.showResults){
+    html += s.question.options.map((opt,i)=>`<div class="choice-line">${i+1}. ${esc(opt)}</div>`).join('');
+  } else {
+    const total=s.counts.reduce((a,b)=>a+b,0);
+    if(s.question.type==='short_answer'){
+      const answers=s.textResponses||[];
+      html += answers.length ? `<div class="response-cloud">${answers.map(a=>`<span class="choice-line">${esc(a)}</span>`).join('')}</div>` : '<p class="muted">Responses will appear here.</p>';
+    } else html += s.question.options.map((opt,i)=>{
+      const n=s.counts[i]||0;
+      const pct=total?Math.round((n/total)*100):0;
+      return `<div class="result">
+        <div class="result-label"><span>${esc(opt)}</span><strong>${n} (${pct}%)</strong></div>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+      </div>`;
+    }).join('');
+  }
+
+  c.innerHTML=html;
+}
+
+// Reuse audience room only as a lightweight "something changed" trigger,
+// then refetch exact question display state.
+socket.emit('join_audience',{code,participantId:`display-${Math.random().toString(36).slice(2)}`});
+socket.on('audience_state',()=>fetchState());
+socket.on('error_message',()=>fetchState());
+
+fetchState();
+</script>
+</body>
+</html>

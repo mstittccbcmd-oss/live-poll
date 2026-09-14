@@ -1,0 +1,32 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Live Poll</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap narrow">
+  <section class="card">
+    <p class="eyebrow">Live Poll</p>
+    <h1>Create a live session</h1>
+    <p class="muted">Audience joins once. You control which question appears.</p>
+    <label>Session title</label>
+    <input id="title" value="Faculty Live Poll">
+    <div class="actions" style="margin-top:14px">
+      <button id="create">Create session</button>
+      <a href="/preloaded.html"><button class="secondary" type="button">Start a Preloaded Poll</button></a>
+      <a href="/join.html"><button class="secondary" type="button">Join a session</button></a>
+    </div>
+  </section>
+</main>
+<script>
+document.getElementById('create').onclick = async () => {
+  const title = document.getElementById('title').value.trim() || 'Live Poll';
+  const r = await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title})});
+  const s = await r.json();
+  location.href = s.hostUrl;
+};
+</script>
+</body>
+</html>

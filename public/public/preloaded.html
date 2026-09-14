@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Preloaded Polls</title><link rel="stylesheet" href="/style.css"></head>
+<body><main class="wrap"><section class="card">
+<p class="eyebrow">Prepared polls</p><h1>Start a Preloaded Poll</h1>
+<p class="muted">Choose a prepared question set. You can still add more questions from the presenter screen.</p>
+<div id="polls"><p class="muted">Loading…</p></div>
+<p style="margin-top:18px"><a href="/">← Back home</a></p>
+</section></main>
+<script>
+async function load(){
+ const r=await fetch('/api/preloaded-polls'); const polls=await r.json();
+ document.getElementById('polls').innerHTML=polls.map(p=>`
+ <div class="question-row"><div><strong>${p.title}</strong><br><span class="small muted">${p.questionCount} questions</span></div>
+ <button onclick="start('${p.id}')">Start Poll</button></div>`).join('')||'<p>No preloaded polls yet.</p>';
+}
+async function start(id){
+ const r=await fetch('/api/preloaded-polls/'+id+'/start',{method:'POST'});
+ const s=await r.json(); if(!r.ok)return alert(s.error||'Could not start poll');
+ location.href=s.hostUrl;
+}
+load();
+</script></body></html>
