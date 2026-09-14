@@ -201,6 +201,82 @@ app.get("/api/session/:code/projector-state", (req, res) => {
   res.json(publicState(s, true));
 });
 
+
+app.get("/api/session/:code/export.csv", (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const s = sessions.get(code);
+  if (!s || req.query.key !== s.hostToken) {
+    return res.status(403).send("Unauthorized");
+  }
+
+  const escapeCsv = (value) => {
+    const text = String(value ?? "");
+    if (/[",\n\r]/.test(text)) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+
+  const rows = [
+    ["Session Title", s.title],
+    ["Session Code", code],
+    ["Exported At", new Date().toISOString()],
+    [],
+    ["Question #", "Question", "Answer Choice", "Responses", "Percent"]
+  ];
+
+  s.questions.forEach((q, qi) => {
+    const counts = q.options.map(() => 0);
+
+    for (const choice of Object.values(s.responses[qi] || {})) {
+      if (Number.isInteger(choice) && choice >= 0 && choice < counts.length) {
+        counts[choice]++;
+      }
+    }
+
+    const total = counts.reduce((a, b) => a + b, 0);
+
+    q.options.forEach((option, oi) => {
+      const count = counts[oi];
+      const percent = total ? ((count / total) * 100).toFixed(1) : "0.0";
+      rows.push([
+        qi + 1,
+        q.text,
+        option,
+        count,
+        `${percent}%`
+      ]);
+    });
+  });
+
+  rows.push([]);
+  rows.push(["Anonymous Individual Responses"]);
+  rows.push(["Participant ID", ...s.questions.map((_, i) => `Q${i + 1}`)]);
+
+  const participantIds = new Set();
+  Object.values(s.responses).forEach(questionResponses => {
+    Object.keys(questionResponses || {}).forEach(id => participantIds.add(id));
+  });
+
+  Array.from(participantIds).sort().forEach((id, index) => {
+    const row = [`Participant ${String(index + 1).padStart(3, "0")}`];
+
+    s.questions.forEach((q, qi) => {
+      const choice = s.responses[qi]?.[id];
+      row.push(Number.isInteger(choice) ? q.options[choice] : "");
+    });
+
+    rows.push(row);
+  });
+
+  const csv = rows.map(row => row.map(escapeCsv).join(",")).join("\r\n");
+  const safeTitle = s.title.replace(/[^a-z0-9_-]+/gi, "_").replace(/^_+|_+$/g, "") || "live_poll";
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}_results.csv"`);
+  res.send("\ufeff" + csv);
+});
+
 io.on("connection", socket => {
   socket.on("join_host", ({code, key}) => {
     code = String(code || "").toUpperCase();

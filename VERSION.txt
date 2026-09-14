@@ -1,0 +1,4 @@
+Live Poll v2
+
+Added: Download Results (.CSV) button on presenter screen.
+CSV includes aggregate counts/percentages and anonymous individual response rows.
