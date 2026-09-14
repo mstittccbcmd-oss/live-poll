@@ -44,7 +44,15 @@ Not at all confident</textarea>
 </section>
 
 <section class="card">
-  <h2>Presenter controls</h2>
+  <div class="topbar">
+    <div>
+      <h2>Presenter controls</h2>
+      <p class="muted">Launch questions, reveal results, or download the session results.</p>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="downloadResults">Download Results (.CSV)</button>
+    </div>
+  </div>
   <div id="controls"><p class="muted">Launch a question to begin.</p></div>
 </section>
 
@@ -78,6 +86,17 @@ async function setup(){
 }
 socket.on('host_state',s=>{state=s;render()});
 socket.on('error_message',m=>alert(m));
+
+
+document.getElementById('downloadResults').onclick = () => {
+  const url = `/api/session/${code}/export.csv?key=${encodeURIComponent(key)}`;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+};
 
 document.getElementById('add').onclick=async()=>{
   const text=document.getElementById('qtext').value.trim();
