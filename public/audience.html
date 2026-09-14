@@ -1,0 +1,51 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Audience - Live Poll</title><link rel="stylesheet" href="/style.css">
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<main class="wrap narrow">
+<section class="card">
+  <p class="eyebrow">Audience</p>
+  <h1 id="title">Live Poll</h1>
+  <div id="content" class="big-center"><p class="muted">Waiting for the presenter…</p></div>
+</section>
+</main>
+<script>
+const p=new URLSearchParams(location.search),code=(p.get('code')||'').toUpperCase();
+const socket=io();
+let state=null, myVote=null, lastActive=null;
+let pid=localStorage.getItem('livePollParticipantId');
+if(!pid){pid=(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2));localStorage.setItem('livePollParticipantId',pid)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+socket.emit('join_audience',{code,participantId:pid});
+socket.on('audience_state',s=>{
+  if(lastActive!==s.active){myVote=null;lastActive=s.active}
+  state=s;render();
+});
+socket.on('error_message',m=>document.getElementById('content').innerHTML=`<p style="color:#b91c1c">${esc(m)}</p>`);
+function vote(i){myVote=i;socket.emit('vote',{code,choice:i,participantId:pid});render()}
+function bars(){
+  if(!state.counts)return'';
+  const total=state.counts.reduce((a,b)=>a+b,0);
+  return state.question.options.map((opt,i)=>{
+    const n=state.counts[i]||0,pct=total?Math.round(n/total*100):0;
+    return `<div class="result"><div class="result-label"><span>${esc(opt)}</span><strong>${n} (${pct}%)</strong></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+  }).join('');
+}
+function render(){
+  document.getElementById('title').textContent=state?.title||'Live Poll';
+  const c=document.getElementById('content');
+  if(!state||state.active===null){c.innerHTML='<p class="muted">Waiting for the presenter to open the next question…</p>';return}
+  c.className='';
+  c.innerHTML=`<h2>${esc(state.question.text)}</h2>`+
+    state.question.options.map((opt,i)=>`<button class="choice ${myVote===i?'selected':''}" onclick="vote(${i})">${esc(opt)}</button>`).join('')+
+    (myVote!==null?'<p style="color:var(--ok);font-weight:800">Response recorded.</p>':'')+
+    (state.showResults?`<hr><h3>Live results</h3>${bars()}`:'');
+}
+</script>
+</body>
+</html>

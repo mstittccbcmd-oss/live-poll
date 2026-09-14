@@ -1,0 +1,133 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Presenter - Live Poll</title><link rel="stylesheet" href="/style.css">
+<script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+<main class="wrap">
+<section class="card">
+  <div class="topbar">
+    <div><p class="eyebrow">Private presenter controls</p><h1 id="title">Live Poll</h1></div>
+    <div class="codebox"><span class="small">Audience code</span><strong id="codeBox"></strong></div>
+  </div>
+  <div class="grid" style="margin-top:18px">
+    <div>
+      <p><strong>Audience join:</strong> <span id="audienceUrl"></span></p>
+      <p><strong>Projector view:</strong> <a id="projectorLink" target="_blank">Open clean projector screen</a></p>
+    </div>
+    <div style="text-align:center">
+      <img id="qr" class="qr" alt="QR code for audience join">
+    </div>
+  </div>
+</section>
+
+<section class="grid">
+  <section class="card">
+    <h2>Add question</h2>
+    <label>Question</label>
+    <textarea id="qtext" rows="3" placeholder="How confident are you using AI in your course?"></textarea>
+    <label>Answer choices — one per line</label>
+    <textarea id="qoptions" rows="6">Very confident
+Somewhat confident
+Not very confident
+Not at all confident</textarea>
+    <button id="add" style="margin-top:12px">Add question</button>
+  </section>
+
+  <section class="card">
+    <h2>Question list</h2>
+    <div id="questionList"><p class="muted">No questions yet.</p></div>
+  </section>
+</section>
+
+<section class="card">
+  <h2>Presenter controls</h2>
+  <div id="controls"><p class="muted">Launch a question to begin.</p></div>
+</section>
+
+<section class="card">
+  <h2>Live results</h2>
+  <div id="results"><p class="muted">No active question.</p></div>
+</section>
+</main>
+
+<script>
+const p=new URLSearchParams(location.search);
+const code=(p.get('code')||'').toUpperCase();
+const key=p.get('key')||'';
+const socket=io();
+let state=null;
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+async function post(path,body){
+  const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json(); if(!r.ok) alert(j.error||'Something went wrong'); return j;
+}
+async function setup(){
+  document.getElementById('codeBox').textContent=code;
+  const qr=await fetch(`/api/session/${code}/qr`).then(r=>r.json());
+  document.getElementById('qr').src=qr.dataUrl;
+  document.getElementById('audienceUrl').textContent=qr.joinUrl;
+
+  const hs=await fetch(`/api/session/${code}/host-state?key=${encodeURIComponent(key)}`).then(r=>r.json());
+  document.getElementById('projectorLink').href=`/projector.html?code=${code}&key=${hs.projectorToken}`;
+  socket.emit('join_host',{code,key});
+}
+socket.on('host_state',s=>{state=s;render()});
+socket.on('error_message',m=>alert(m));
+
+document.getElementById('add').onclick=async()=>{
+  const text=document.getElementById('qtext').value.trim();
+  const options=document.getElementById('qoptions').value.split('\n').map(x=>x.trim()).filter(Boolean);
+  await post(`/api/session/${code}/question`,{key,text,options});
+  document.getElementById('qtext').value='';
+};
+async function launch(i){await post(`/api/session/${code}/activate`,{key,index:i})}
+async function closePoll(){await post(`/api/session/${code}/activate`,{key,index:null})}
+async function toggleResults(){await post(`/api/session/${code}/show-results`,{key,show:!state.showResults})}
+async function nextQuestion(){
+  if(state.active===null)return;
+  const next=state.active+1;
+  if(next<state.questions.length) await launch(next); else await closePoll();
+}
+async function resetQuestion(i){
+  if(confirm('Clear all responses for this question?')) await post(`/api/session/${code}/reset`,{key,index:i});
+}
+function renderBars(q){
+  const total=q.responseCount||0;
+  return q.options.map((opt,i)=>{
+    const n=q.counts[i]||0,pct=total?Math.round(n/total*100):0;
+    return `<div class="result"><div class="result-label"><span>${esc(opt)}</span><strong>${n} (${pct}%)</strong></div><div class="bar"><span style="width:${pct}%"></span></div></div>`;
+  }).join('');
+}
+function render(){
+  if(!state)return;
+  document.getElementById('title').textContent=state.title;
+  const list=document.getElementById('questionList');
+  list.innerHTML=state.questions.length?state.questions.map((q,i)=>`
+    <div class="question-row ${state.active===i?'active':''}">
+      <div><strong>${i+1}. ${esc(q.text)}</strong><br><span class="small muted">${q.responseCount} response(s)</span></div>
+      <div class="actions"><button class="secondary" onclick="launch(${i})">${state.active===i?'Active':'Launch'}</button><button class="ghost" onclick="resetQuestion(${i})">Reset</button></div>
+    </div>`).join(''):'<p class="muted">No questions yet.</p>';
+
+  const controls=document.getElementById('controls');
+  if(state.active===null){
+    controls.innerHTML='<p class="muted">No question is active.</p>';
+    document.getElementById('results').innerHTML='<p class="muted">No active question.</p>';
+  } else {
+    const q=state.questions[state.active];
+    controls.innerHTML=`
+      <p class="eyebrow">Question ${state.active+1}</p><h3>${esc(q.text)}</h3>
+      <div class="actions"><button onclick="toggleResults()">${state.showResults?'Hide results':'Reveal results'}</button>
+      <button class="secondary" onclick="nextQuestion()">Next question</button><button class="warn" onclick="closePoll()">Close question</button></div>`;
+    document.getElementById('results').innerHTML=`
+      <p><strong>${q.responseCount}</strong> response(s)</p>${renderBars(q)}`;
+  }
+}
+setup();
+</script>
+</body>
+</html>

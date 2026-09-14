@@ -1,0 +1,33 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Join Live Poll</title><link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main class="wrap narrow">
+  <section class="card">
+    <p class="eyebrow">Audience</p>
+    <h1>Join a live poll</h1>
+    <label>Session code</label>
+    <input id="code" maxlength="6" placeholder="ABC123" autofocus>
+    <button id="join" style="margin-top:12px">Join</button>
+    <p id="error" style="color:#b91c1c;font-weight:700"></p>
+  </section>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+if(params.get('code')) document.getElementById('code').value = params.get('code').toUpperCase();
+async function go(){
+  const code = document.getElementById('code').value.trim().toUpperCase();
+  if(!code) return;
+  const r = await fetch(`/api/session/${code}/public-state`);
+  if(!r.ok){ document.getElementById('error').textContent='Session not found.'; return; }
+  location.href=`/audience.html?code=${code}`;
+}
+document.getElementById('join').onclick=go;
+document.getElementById('code').addEventListener('keydown',e=>{if(e.key==='Enter')go()});
+</script>
+</body>
+</html>
