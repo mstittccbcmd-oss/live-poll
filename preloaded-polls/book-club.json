@@ -1,0 +1,35 @@
+{
+  "id": "book-club",
+  "title": "Book Club Poll",
+  "questions": [
+    {
+      "text": "Think about your online course from a student\u2019s perspective. What\u2019s ONE thing you do that probably makes their life easier?",
+      "type": "short_answer",
+      "display": "responses"
+    },
+    {
+      "text": "If you could improve ONE part of your online course for students, where would you start?",
+      "type": "multiple_choice",
+      "options": [
+        "Course organization/navigation",
+        "Instructions and expectations",
+        "Communication/instructor presence",
+        "Assignments and assessments",
+        "Feedback and grading",
+        "Student engagement/community",
+        "Something else"
+      ]
+    },
+    {
+      "text": "How important do you think instructor \"human presence\" is to student success in an online course?",
+      "type": "multiple_choice",
+      "options": [
+        "Essential",
+        "Very important",
+        "Somewhat important",
+        "Not very important",
+        "I'm not sure"
+      ]
+    }
+  ]
+}

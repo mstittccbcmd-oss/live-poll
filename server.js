@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const path = require("path");
+const fs = require("fs");
 
 const app = express();
 const server = http.createServer(app);
@@ -47,7 +48,7 @@ function publicState(session, includeResults = false) {
   const payload = {
     title: session.title,
     active,
-    question: { text: q.text, options: q.options },
+    question: { text: q.text, options: q.options, type: q.type || 'multiple_choice' },
     showResults: session.showResults,
     responseCount: counts.reduce((a,b)=>a+b,0)
   };
@@ -84,6 +85,63 @@ function emitState(code) {
   io.to(`audience:${code}`).emit("audience_state", publicState(s, false));
   io.to(`projector:${code}`).emit("projector_state", publicState(s, true));
 }
+
+
+function loadPreloadedPolls() {
+  const dir = path.join(__dirname, "preloaded-polls");
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter(name => name.endsWith(".json"))
+    .map(name => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")));
+}
+
+app.get("/api/preloaded-polls", (req, res) => {
+  try {
+    const polls = loadPreloadedPolls();
+    res.json(polls.map(p => ({id:p.id, title:p.title, questionCount:p.questions.length})));
+  } catch (e) {
+    res.status(500).json({error:"Could not load preloaded polls."});
+  }
+});
+
+app.post("/api/preloaded-polls/:id/start", (req, res) => {
+  try {
+    const deck = loadPreloadedPolls().find(p => p.id === req.params.id);
+    if (!deck) return res.status(404).json({error:"Poll not found"});
+
+    const code = makeCode();
+    const hostToken = makeToken();
+    const projectorToken = makeToken();
+    const questions = deck.questions.map(q => ({
+      text: q.text,
+      type: q.type || "multiple_choice",
+      options: q.options || [],
+      display: q.display || "responses"
+    }));
+    const responses = {};
+    questions.forEach((_, i) => responses[i] = {});
+
+    sessions.set(code, {
+      title: deck.title,
+      hostToken,
+      projectorToken,
+      questions,
+      active: null,
+      showResults: false,
+      responses
+    });
+
+    res.json({
+      code, hostToken, projectorToken,
+      hostUrl:`/presenter.html?code=${code}&key=${hostToken}`,
+      projectorUrl:`/projector.html?code=${code}&key=${projectorToken}`,
+      audienceUrl:`/join.html?code=${code}`
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({error:"Could not start preloaded poll."});
+  }
+});
 
 app.post("/api/session", async (req, res) => {
   const code = makeCode();
@@ -133,7 +191,7 @@ app.post("/api/session/:code/question", (req, res) => {
     return res.status(400).json({error:"Enter a question and at least two choices."});
   }
 
-  s.questions.push({ text, options });
+  s.questions.push({ text, options, type: 'multiple_choice' });
   s.responses[s.questions.length - 1] = {};
   emitState(code);
   res.json({ok:true});
@@ -275,6 +333,40 @@ app.get("/api/session/:code/export.csv", (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="${safeTitle}_results.csv"`);
   res.send("\ufeff" + csv);
+});
+
+
+app.get("/api/session/:code/question/:index/display-state", (req, res) => {
+  const code = req.params.code.toUpperCase();
+  const s = sessions.get(code);
+  if (!s) return res.status(404).json({error:"Session not found"});
+
+  const index = Number(req.params.index);
+  if (!Number.isInteger(index) || index < 0 || index >= s.questions.length) {
+    return res.status(404).json({error:"Question not found"});
+  }
+
+  const q = s.questions[index];
+  const counts = q.options.map(() => 0);
+
+  for (const choice of Object.values(s.responses[index] || {})) {
+    if (Number.isInteger(choice) && choice >= 0 && choice < counts.length) {
+      counts[choice]++;
+    }
+  }
+
+  res.json({
+    title: s.title,
+    questionIndex: index,
+    isActive: s.active === index,
+    showResults: s.active === index ? s.showResults : false,
+    question: { text: q.text, options: q.options, type: q.type || 'multiple_choice' },
+    counts,
+    textResponses: q.type === "short_answer" ? Object.values(s.responses[index] || {}) : [],
+    responseCount: q.type === "short_answer"
+      ? Object.keys(s.responses[index] || {}).length
+      : counts.reduce((a,b)=>a+b,0)
+  });
 });
 
 io.on("connection", socket => {

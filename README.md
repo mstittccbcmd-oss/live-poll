@@ -1,3 +1,25 @@
+# Live Poll v4 – Book Club + Preloaded Polls
+
+New:
+- Keeps Quick Poll/manual question creation.
+- Adds Start a Preloaded Poll.
+- Includes a Book Club Poll with 3 prepared questions.
+- Book Club Q1 is a short-answer response question.
+- Q2 and Q3 are multiple-choice/scale-style questions.
+- Preloaded questions are launched one at a time; participants cannot see ahead.
+- You can still add manual questions after starting a preloaded poll.
+
+
+## New in v3
+
+- **Copy Audience Link** button for pasting the join URL into Teams, Zoom, or chat.
+- Every question now has its own **PowerPoint Display** link.
+- The question display is a clean, presentation-friendly page that shows:
+  - waiting state before launch,
+  - the live question while voting,
+  - live results after the presenter reveals them.
+- Each question row includes **Open PowerPoint display** and **Copy Display Link**.
+
 
 # Live Poll Multi-Device
 
@@ -34,6 +56,10 @@ Then browse to:
 ```text
 http://localhost:3000
 ```
+
+## New in v2
+
+- **Download Results (.CSV)** from the private presenter screen; opens directly in Excel and includes aggregate results plus anonymous participant response rows.
 
 ## Important MVP notes
 - No participant accounts.
